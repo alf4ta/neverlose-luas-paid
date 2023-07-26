@@ -1,0 +1,840 @@
+--dependencies
+local base64 = require("neverlose/base64")
+local clipboard = require("neverlose/clipboard")
+local ffi = require('ffi')
+local anti_aim = require("neverlose/anti_aim") 
+-- dependencies end
+
+
+local font = {
+    verdana = render.load_font("Verdana", 11)
+}
+
+local function gradient_text(r1, g1, b1, a1, r2, g2, b2, a2, text)
+    local output = ''
+    local len = #text-1
+    local rinc = (r2 - r1) / len
+    local ginc = (g2 - g1) / len
+    local binc = (b2 - b1) / len
+    local ainc = (a2 - a1) / len
+    for i=1, len+1 do
+        output = output .. ('\a%02x%02x%02x%02x%s'):format(r1, g1, b1, a1, text:sub(i, i))
+        r1 = r1 + rinc
+        g1 = g1 + ginc
+        b1 = b1 + binc
+        a1 = a1 + ainc
+    end
+
+    return output
+end
+
+local niggasidebar = gradient_text(50,245,215,255,75,85,240,255, "alien.lua")
+ui.sidebar(niggasidebar, "cat")
+
+local refs = {
+    yaw = ui.find("Aimbot", "Anti Aim", "Angles", "Yaw"),
+    yaw_modifier = ui.find("Aimbot", "Anti Aim", "Angles", "Yaw Modifier"),
+    yaw_add = ui.find("Aimbot", "Anti Aim", "Angles", "Yaw", "Offset"),
+    modifier_degree = ui.find("Aimbot", "Anti Aim", "Angles", "Yaw Modifier", "Offset"),
+    left_limit = ui.find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Left Limit"),
+    right_limit = ui.find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Right Limit"),
+    fake_options = ui.find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Options"),
+    slow_walk = ui.find("Aimbot", "Anti Aim", "Misc", "Slow Walk"),
+    HS = ui.find("Aimbot", "Ragebot", "Main", "Hide Shots"),
+    DT = ui.find("Aimbot", "Ragebot", "Main", "Double Tap"),
+    BodyAim = ui.find("Aimbot", "Ragebot", "Safety", "Body Aim"),
+    SafePoints = ui.find("Aimbot", "Ragebot", "Safety", "Safe Points"),
+    AutoPeek = ui.find("Aimbot", "Ragebot", "Main", "Peek Assist"),
+    limit = ui.find("Aimbot", "Anti Aim", "Fake Lag", "Limit"),
+    enable = ui.find("Aimbot", "Anti Aim", "Fake Lag", "Enabled"),
+    freestanding = ui.find("Aimbot", "Anti Aim", "Angles", "Freestanding"),
+    fakeduck = ui.find("Aimbot", "Anti Aim", "Misc", "Fake Duck"),
+    spike = ui.find("Miscellaneous", "Main", "Other", "Fake Latency"),
+    da = ui.find("Aimbot", "Ragebot", "Main", "Enabled", "Dormant Aimbot"),
+    pitch = ui.find("Aimbot", "Anti Aim", "Angles", "Pitch"),
+    bodyyaw = ui.find("Aimbot", "Anti Aim", "Angles", "Body Yaw"),
+    options = ui.find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Options")
+}
+
+local tabs = {
+    antiaim = ui.create("Anti-Aim", "[\aE1DEFD99AA\aFFFFFFFF] Main"),
+    visuals = ui.create("Visuals", "[\aE1DEFD99Visuals\aFFFFFFFF] Main"),
+    misc = ui.create("Misc", "[\aE1DEFD99Misc\aFFFFFFFF]"),
+}
+local menu = {
+    presets = tabs.antiaim:combo("[\aE1DEFD99AA\aFFFFFFFF] Anti-aim modes", "Default", "Tank AA", "Builder", "Exploit", "Anti Exploit"),
+    playerstate_combo = tabs.antiaim:combo("[\aE1DEFD99AA\aFFFFFFFF] Player state", "Slow motion", "Crouch", "Jump", "Duckjump", "Stand", "Move"),
+    antibruteforce = tabs.antiaim:switch("[\aE1DEFD99WIP\aFFFFFFFF] Anti-Bruteforce", false),
+    indicators = tabs.visuals:switch("[\aE1DEFD99Visuals\aFFFFFFFF] Crosshair indicators", false),
+    notifications = tabs.visuals:color_picker("[\aE1DEFD99Visuals\aFFFFFFFF] Notifications"),
+    feature_indicators = tabs.visuals:selectable("[\aE1DEFD99Visuals\aFFFFFFFF] $500 Indicators", "DT", "SAFE", "BODY", "DA", "PING", "FS", "DMG", "DUCK"),
+    aimbotlogs = tabs.misc:switch("[\aE1DEFD99Misc\aFFFFFFFF] Aimbot logging")
+    --import = tabs.antiaim:button("Import config"),
+    --export = tabs.antiaim:button("Export config")
+}
+deeznigga = menu.indicators:create()
+local clr1 = deeznigga:color_picker("Main color")
+local clr2 = deeznigga:color_picker("Second color")
+
+
+
+anti_aim = {}
+yomomma = {}
+local numtotext = {
+    [0] = 'Slow motion',
+    [1] = 'Crouch',
+    [2] = 'Jump',
+    [3] = 'Duckjump',
+    [4] = 'Stand',
+    [5] = 'Move',
+}
+
+
+-- the masterpiece begins
+
+
+for i = 0, 5 do
+    yomomma[i] = {
+        ui.create("Anti-Aim", "[\aE1DEFD99"..numtotext[i].."\aFFFFFFFF] ".."Builder")
+    }
+end
+
+for i = 0, 5 do
+    anti_aim[i] = {
+        yaw_add_left = yomomma[i][1]:slider("yaw add left", -60, 60, 0),
+        yaw_add_right = yomomma[i][1]:slider("yaw add right", -60, 60, 0),
+        yaw_modifier = yomomma[i][1]:combo("yaw modifier", "Disabled", "Center", "Offset", "Random", "Spin"),
+        left_jitter_value = yomomma[i][1]:slider("jitter degree", -90, 90, 0),
+        fake_options = yomomma[i][1]:selectable("fake options", "Avoid Overlap", "Jitter", "Randomize Jitter", "Anti-Bruteforce"),
+        left_limit = yomomma[i][1]:slider("fake yaw left", 0, 60, 0),
+        right_limit = yomomma[i][1]:slider("fake yaw right", 0, 60, 0),
+    }
+end
+
+local function indicators500()
+    --  net = utils.net_channel()
+    --outgoing, incoming = net.latency[0], net.latency[1]
+    --ping = math.max(0, (incoming-outgoing)*2500)    
+    --print("R: ".. math.floor(255 - ((ping / 189 * 60) * 2.29824561404)))
+   -- print("G: ".. math.floor((ping / 189 * 60) * 3.42105263158))
+    --print("B: ".. math.floor((ping / 189 * 60) * 0.22807017543))
+    if menu.feature_indicators:get("DMG") then
+        indicator(color(235,235,235,255), ui.find("Aimbot", "Ragebot", "Selection", "Minimum Damage"):get(), false, true)
+    end
+    if refs.SafePoints:get() == "Force" and menu.feature_indicators:get("SAFE") then
+        indicator(color(235,235,235,255), 'SAFE', false, true)
+    end
+    if refs.BodyAim:get() == "Force" and menu.feature_indicators:get("BODY") then
+        indicator(color(235,235,235,255), 'BODY', false, true)
+    end
+    if refs.da:get() and menu.feature_indicators:get("DA")  then
+        indicator(color(132, 195, 16, 255), "DA", false, true)
+    end
+    if refs.spike:get() > 0 and menu.feature_indicators:get("PING")  then
+        indicator(color(160, 179, 51, 255), 'PING', false, true)
+    end
+    if refs.freestanding:get() and menu.feature_indicators:get("FS")  then
+        indicator(color(235,235,235,255), "FS", false, true)
+    end
+    if refs.fakeduck:get() and menu.feature_indicators:get("DUCK") then
+        indicator(color(235,235,235,255), 'DUCK', false, true)
+    end
+    if refs.DT:get() and menu.feature_indicators:get("DT")  then
+        indicator(rage.exploit:get() == 1 and color(235,235,235,255) or color(255,0,0,255), 'DT', false)
+    end
+end
+
+local function player_state() -- DOGSHIT
+    local velocity = entity.get_local_player().m_vecVelocity
+    local vx, vy = velocity.x, velocity.y
+    local player_standing = math.sqrt(vx ^ 2 + vy ^ 2) < 2
+    local player_jumping = bit.band(entity.get_local_player().m_fFlags, 1) == 0
+    local player_duck_peek_assist = refs.fakeduck:get()
+    local player_crouching = entity.get_local_player().m_flDuckAmount > 0.5 and not player_duck_peek_assist
+    local player_slow_motion = refs.slow_walk:get()
+
+    if player_duck_peek_assist then
+        return 'fakeduck'
+    elseif player_slow_motion then
+        return 'slowmotion'
+    elseif player_crouching and player_standing then
+        return 'crouch'
+    elseif player_jumping and not player_crouching then
+        return 'jump'
+    elseif player_jumping and player_crouching then
+        return "duckjump"
+    elseif player_standing then
+        return 'stand'
+    elseif not player_standing and not player_crouching then
+        return 'move'
+    end
+end
+
+local function buildervisibles()
+    if menu.presets:get() == "Builder" then
+        menu.playerstate_combo:visibility(true)
+        for k, v in pairs(anti_aim[0]) do
+            v:visibility(menu.playerstate_combo:get() == "Slow motion")
+        end
+        for k, v in pairs(anti_aim[1]) do
+            v:visibility(menu.playerstate_combo:get() == "Crouch")
+        end
+        for k, v in pairs(anti_aim[2]) do
+            v:visibility(menu.playerstate_combo:get() == "Jump")
+        end
+        for k, v in pairs(anti_aim[3]) do
+            v:visibility(menu.playerstate_combo:get() == "Duckjump")
+        end
+        for k, v in pairs(anti_aim[4]) do
+            v:visibility(menu.playerstate_combo:get() == "Stand")
+        end
+        for k, v in pairs(anti_aim[5]) do
+            v:visibility(menu.playerstate_combo:get() == "Move")
+        end
+    else
+        menu.playerstate_combo:visibility(false)
+        for k, v in pairs(anti_aim[0]) do
+            v:visibility(false)
+        end
+        for k, v in pairs(anti_aim[1]) do
+            v:visibility(false)
+        end
+        for k, v in pairs(anti_aim[2]) do
+            v:visibility(false)
+        end
+        for k, v in pairs(anti_aim[3]) do
+            v:visibility(false)
+        end
+        for k, v in pairs(anti_aim[4]) do
+            v:visibility(false)
+        end
+        for k, v in pairs(anti_aim[5]) do
+            v:visibility(false)
+        end
+    end
+end
+
+local function builder()
+    local lp = entity.get_local_player()
+    local bodyyaw = lp.m_flPoseParameter[11] * 120 - 60 -- could be more simplified
+    local side = bodyyaw > 10 and 1 or -1
+    if menu.presets:get() == "Builder" then
+        if player_state() == "slowmotion" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[0].yaw_add_left:get() or anti_aim[0].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[0].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[0].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[0].left_limit:get() or anti_aim[0].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[0].right_limit:get() or anti_aim[0].left_limit:get())
+            refs.fake_options:set(anti_aim[0].fake_options:get())
+        end
+        if player_state() == "crouch" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[1].yaw_add_left:get() or anti_aim[1].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[1].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[1].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[1].left_limit:get() or anti_aim[1].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[1].right_limit:get() or anti_aim[1].left_limit:get())
+            refs.fake_options:set(anti_aim[1].fake_options:get())
+        end
+        if player_state() == "jump" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[2].yaw_add_left:get() or anti_aim[2].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[2].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[2].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[2].left_limit:get() or anti_aim[2].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[2].right_limit:get() or anti_aim[2].left_limit:get())
+            refs.fake_options:set(anti_aim[2].fake_options:get())
+        end
+        if player_state() == "duckjump" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[3].yaw_add_left:get() or anti_aim[3].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[3].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[3].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[3].left_limit:get() or anti_aim[3].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[3].right_limit:get() or anti_aim[3].left_limit:get())
+            refs.fake_options:set(anti_aim[3].fake_options:get())
+        end
+        if player_state() == "stand" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[4].yaw_add_left:get() or anti_aim[4].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[4].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[4].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[4].left_limit:get() or anti_aim[4].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[4].right_limit:get() or anti_aim[4].left_limit:get())
+            refs.fake_options:set(anti_aim[4].fake_options:get())
+        end
+        if player_state() == "move" then
+            refs.yaw:set("Backward")
+            refs.yaw_add:set(side == 1 and anti_aim[5].yaw_add_left:get() or anti_aim[5].yaw_add_right:get())
+            refs.yaw_modifier:set(anti_aim[5].yaw_modifier:get())
+            refs.modifier_degree:set(anti_aim[5].left_jitter_value:get())
+            refs.left_limit:set(bodyyaw > 10 and anti_aim[5].left_limit:get() or anti_aim[5].right_limit:get())
+            refs.right_limit:set(bodyyaw > 10 and anti_aim[5].right_limit:get() or anti_aim[5].left_limit:get())
+            refs.fake_options:set(anti_aim[5].fake_options:get())
+        end
+    elseif menu.presets:get() == "Tank AA" then
+        if player_state() == "stand" then
+            refs.yaw_modifier:set("Center")
+            refs.yaw_add:set(bodyyaw > 10 and -14 or 9)
+            refs.modifier_degree:set(-32)
+            refs.left_limit:set(59)
+            refs.right_limit:set(59)
+        end
+        if player_state() == "jump" then
+
+            refs.yaw_modifier:set("Center")
+            refs.yaw_add:set((bodyyaw > 10 and -18 or 4))
+            refs.modifier_degree:set(72)
+            refs.left_limit:set(59)
+            refs.right_limit:set(59)
+        end
+        if player_state() == "duckjump" then
+            refs.yaw_modifier:set("Center")
+            refs.yaw_add:set((bodyyaw > 10 and -20 or 12))
+            refs.modifier_degree:set(-54)
+            refs.left_limit:set(60)
+            refs.right_limit:set(60)
+        end
+        if player_state() == "move" then
+            refs.yaw_add:set((bodyyaw > 10 and -5 or 10))
+            refs.yaw_modifier:set("Center")
+            refs.modifier_degree:set(-68)
+            refs.left_limit:set(60)
+            refs.right_limit:set(60)
+        end
+        if player_state() == "crouch" then
+            refs.yaw_add:set((bodyyaw > 10 and -12 or 17))
+            refs.yaw_modifier:set("Center")
+            refs.modifier_degree:set(43)
+            refs.left_limit:set(60)
+            refs.right_limit:set(60)
+        end
+        if player_state() == "slowmotion" then
+
+            refs.yaw_add:set((bodyyaw > 10 and -15 or 15))
+            refs.modifier_degree:set(60)
+            refs.left_limit:set(60)
+            refs.right_limit:set(60)
+            refs.yaw_modifier:set("Center")
+        end
+    elseif menu.presets:get() == "Exploit" then
+        if globals.tickcount % 8 == math.random(0,1) then
+            refs.pitch:set("Fake Up")
+            refs.yaw_add:set(0)
+            refs.yaw_modifier:set("Offset")
+            refs.modifier_degree:set(10)
+            refs.left_limit:set(0)
+            refs.right_limit:set(0)
+            refs.fake_options:set()
+        else
+            refs.fake_options:set("Jitter")
+            refs.pitch:set("Down")
+            refs.yaw_add:set(9)
+            refs.yaw_modifier:set("Center")
+            refs.modifier_degree:set(-68)
+            refs.left_limit:set(58)
+            refs.right_limit:set(58)
+            
+        end
+    elseif menu.presets:get() == "Anti Exploit" then
+        if globals.tickcount % 11 == math.random(0,1) then 
+            refs.pitch:set("Fake Down")
+        else
+            refs.pitch:set("Down")
+        end
+            refs.yaw_add:set(8)
+        refs.yaw_modifier:set("Center")
+            refs.modifier_degree:set(63)
+        refs.fake_options:set("Jitter")
+    end
+end
+
+--Indicators
+local value = 0
+local once1 = false
+local once2 = false
+local dt_a = 0
+local dt_y = 45
+local dt_x = 0
+local dt_w = 0
+local os_a = 0
+local os_y = 45
+local os_x = 0
+local os_w = 0
+local fs_a = 0
+local fs_y = 45
+local fs_x = 0
+local fs_w = 0
+local n_x = 0
+local n2_x = 0
+local n3_x = 0
+local n4_x = 0
+
+local hitler = {}
+
+hitler.lerp = function(start, vend, time)
+    return start + (vend - start) * time
+end
+function HEXtoRGB(hexArg)
+
+	hexArg = hexArg:gsub('#','')
+
+	if(string.len(hexArg) == 3) then
+		return tonumber('0x'..hexArg:sub(1,1)) * 17, tonumber('0x'..hexArg:sub(2,2)) * 17, tonumber('0x'..hexArg:sub(3,3)) * 17
+	elseif(string.len(hexArg) == 8) then
+		return tonumber('0x'..hexArg:sub(1,2)), tonumber('0x'..hexArg:sub(3,4)), tonumber('0x'..hexArg:sub(5,6)), tonumber('0x'..hexArg:sub(7,8))
+	else
+		return 0 , 0 , 0
+	end
+
+end
+
+local testx = 0
+local aaa = 0
+local lele = 0
+local fnt = render.load_font("Smallest Pixel-7", 10, "o")
+local keybinds = {
+    ["DT"] = ui.find("Aimbot", "Ragebot", "Main", "Double Tap"),
+    ["AP"] = ui.find("Aimbot", "Ragebot", "Main", "Peek Assist"),
+    ["FD"] = ui.find("Aimbot","Anti Aim","Misc","Fake Duck"),
+    ["HS"] = ui.find("Aimbot", "Ragebot", "Main", "Hide Shots"),
+}
+local mein
+
+local lerp = function(a, b, percent)
+    return a - (a - b) * percent
+end
+  
+local move = 0;
+local scnd
+function get_bodyaw()
+    local player = entity.get_local_player()
+    if player == nil then return end
+	local pose = player.m_flPoseParameter[11]
+
+	return math.floor(math.min(60, (pose * 120 - 60)))
+end
+local function indicators()
+    local deeztext = gradient_text(145,145,255,255,123,123,255,255, "BETA")
+    local alpha = math.floor(math.sin(globals.realtime * 4) * (180 / 2 - 1) + 180 / 2) or 180
+    local animtime = 0.03
+    
+    local yaww = get_bodyaw()
+    if not menu.indicators:get() then return end
+    local lp = entity.get_local_player()
+    if not globals.is_in_game then return end
+    local is_scoped = lp.m_bIsScoped
+    if yaww > 0 then
+        mein = clr1:get()
+        scnd = clr2:get()
+    elseif yaww < 0 then
+        mein = clr2:get()
+        scnd = clr1:get()
+    end
+    local scrsz = render.screen_size()
+    local txtsz2 = render.measure_text(fnt, "c","ALIEN")
+    local txtsz3 = render.measure_text(fnt, "c","BETA")
+    local txtsz = render.measure_text(fnt, "c","ALIEN".." ".."BETA")
+    local txtstt
+    local state = player_state()
+    local txtsz4 = render.measure_text(fnt, "c",state)
+    local txtsz5 = render.measure_text(fnt, "c","DT")
+    if is_scoped then
+        ax = 2
+        a = 0
+        b = 0
+        n = 0
+    else
+        ax = 0
+        n = 2
+        a = 0
+        b = 0
+    end
+    local prsnt = (lp.m_vecVelocity:length2d()/320)
+    if prsnt > 1 then prsnt = 1 end
+    for i = 0, 1 do
+        move = lerp(move, ax*i, animtime) 
+    end
+        local offset = render.measure_text(fnt, "c","DT").y + 4
+        local offset2 = render.measure_text(fnt, "c","DT").y + 4
+        for i, v in pairs(keybinds) do
+            local dap = v
+            if dap:get() then
+                a = a + 1.11
+             render.text(fnt, vector(scrsz.x/2-txtsz5.x/2+txtsz5.x/2*move+1+5*move,scrsz.y/2-txtsz3.y/2+18+1+a*offset2/2+-5+11), clr1:get(),"", i)
+            end
+        end
+        
+    render.rect_outline(vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+1+1+5*move-1,scrsz.y/2+txtsz.y/2-1+11), vector(scrsz.x/2+txtsz.x/2+txtsz.x/2*move-4+1-move+5*move,scrsz.y/2+txtsz.y/2+2+1+11), color(0,0,0,255))
+    render.rect(vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+move*2+2-2*move+1+5*move-1,scrsz.y/2+txtsz.y/2+11), vector(scrsz.x/2+txtsz.x/2*move-move+txtsz.x/2-4*move-4+4*move+5*move,scrsz.y/2+txtsz.y/2+2+11), color(30,30,30,150))
+    render.rect(vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+move*2+2-2*move+1+5*move-1,scrsz.y/2+txtsz.y/2+11), vector(scrsz.x/2+txtsz.x/2*move-move+txtsz.x/2-4*move-4+4*move+5*move,scrsz.y/2+txtsz.y/2+2+11), color(30,30,30,150))
+    render.gradient(vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+move*2+2-2*move+1+5*move-1,scrsz.y/2+txtsz.y/2+11), vector(scrsz.x/2+txtsz.x/2*move-move+txtsz.x/2-4*move-4+4*move+5*move-(txtsz.x-12)+(txtsz.x-12)*prsnt,scrsz.y/2+txtsz.y/2+2+11), clr1:get(),color(clr1:get().r,clr1:get().g,clr1:get().b,30),clr1:get(),color(clr1:get().r,clr1:get().g,clr1:get().b,30))
+    render.gradient(vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+move*2+2-2*move+1+5*move-1+(txtsz.x-5)*prsnt,scrsz.y/2+txtsz.y/2+11), vector(scrsz.x/2+txtsz.x/2*move-move+txtsz.x/2-4*move-4+4*move+5*move,scrsz.y/2+txtsz.y/2+2+11), color(0,0,0,200),color(0,0,0),color(0,0,0,200),color(0,0,0))
+    render.text(fnt, vector(scrsz.x/2-txtsz4.x/2+move*txtsz4.x/2+1+5*move,scrsz.y/2-txtsz2.y/2+txtsz.y/1.5+5+11), clr1:get(), "с",  txtstt)
+    render.text(fnt, vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+1+5*move,scrsz.y/2-txtsz2.y/2+11), clr1:get(),"", "ALIEN")
+    render.text(fnt, vector(scrsz.x/2-txtsz.x/2+txtsz.x/2*move+txtsz2.x+1+5*move,scrsz.y/2-txtsz3.y/2+11), color(clr2:get().r, clr2:get().g, clr2:get().b,alpha),"", deeztext)
+end
+
+
+
+
+
+
+
+
+
+
+events.createmove_run:set(function()
+    --callbacks below
+    builder()
+    if menu.antibruteforce:get() then
+        refs.bodyyaw:override(true)
+        refs.options:override("Anti Bruteforce")
+    end
+end)
+
+
+local hitgroup_str = {
+    [0] = 'generic',
+    'head', 'chest', 'stomach',
+    'left arm', 'right arm',
+    'left leg', 'right leg',
+    'neck', 'generic', 'gear'
+}
+local totalshots = 0
+local missedshots = 0
+local hitshots = 0
+local sp = ""
+local reason = ""
+
+events.aim_ack:set(function(shot)
+    local lc = 0
+    if refs.DT:get() then
+        lc = math.random(0, 1)
+    else
+        lc = math.random(2, 21)
+    end
+    local tc = math.random(0, 21)
+    local flagstest = math.random(1, 5)
+    local flags = {
+        flagstest == 1 and 'T' or '',
+        flagstest == 2 and 'I' or '',
+        flagstest == 3 and 'E' or '',
+        flagstest == 4 and 'B' or '',
+        flagstest == 5 and 'H' or ''
+    }
+
+    enemy = shot.target
+    player_name = enemy:get_name()
+    health = enemy.m_iHealth
+    damage = shot.damage
+    hitchance = shot.hitchance
+    hitgroup = hitgroup_str[shot.hitgroup]
+    backtrack = shot.backtrack
+    wanted_damage = shot.wanted_damage
+    wanted_hitgroup = hitgroup_str[shot.wanted_hitgroup]
+    state = shot.state  
+    reason = state
+    totalshots = totalshots + 1
+    if shot.state == "spread" then
+        reason = "spread"
+    elseif shot.state == "prediction error" then
+        reason = "prediction error"
+    elseif shot.state == "unregistered shot" then 
+        reason = "unregistered shot"
+    elseif shot.state == "death" then
+        reason = "death"
+    elseif shot.state == "player death" then
+        reason = "death"
+    else
+        reason = "?"
+    end
+    if refs.SafePoints:get() == "Prefer" or "Force" then
+        sp = "true"
+    else
+        sp = "false"
+    end
+   if not (state == nil) then
+        missedshots = missedshots + 1
+        print_raw(string.format("\a96C83C[alien.lua] \aFFFFFF[%i] [%i/%i] Missed %s's %s due to %s (%i remaining) sp=%s (%s) LC=%d TC=%d", totalshots, hitshots, missedshots, player_name, wanted_hitgroup, reason, health,sp, flags[flagstest], lc, tc))
+        print_dev(string.format("[%i] [%i/%i] Missed %s's %s due to %s (%i remaining) sp=%s (%s) LC=%d TC=%d", totalshots, hitshots, missedshots, player_name, wanted_hitgroup, reason, health, sp, flags[flagstest], lc, tc))
+   else
+        hitshots = hitshots + 1
+        print_raw(string.format("\a96C83C[alien.lua] \aFFFFFF[%i] [%i/%i] Hit %s's %s for %i(%i) (%i remaining) aimed=%s(%i%%) sp=%s (%s) LC=%d TC=%d", totalshots, hitshots, missedshots, player_name, hitgroup, damage, wanted_damage, health, wanted_hitgroup, hitchance, sp, flags[flagstest], lc, tc))
+        print_dev(string.format("[%i] [%i/%i] Hit %s's %s for %i(%i) (%i remaining) aimed=%s(%i%%) sp=%s (%s) LC=%d TC=%d", totalshots, hitshots, missedshots, player_name, hitgroup, damage, wanted_damage, health, wanted_hitgroup, hitchance, sp, flags[flagstest], lc, tc))
+   end
+end)
+
+
+
+
+
+
+
+
+
+
+math.lerp = function(name, value, speed)
+    return name + (value - name) * globals.frametime * speed
+end
+
+local logs, font, screen_size = {}, render.load_font("Verdana Bold", 10, "o"), render.screen_size()
+
+
+
+render.log = function(text, size)
+    table.insert(logs, { text, 0, globals.curtime, size })
+end
+
+local x, y = render.screen_size().x, render.screen_size().y
+
+
+events.render:set(function()
+    --callbacks below
+    buildervisibles()
+    indicators()
+    indicators500()
+    local offset, x, y = 0, screen_size.x / 2, screen_size.y / 1.4
+
+    for idx, data in ipairs(logs) do
+        if not globals.is_connected and not globals.is_in_game then return false end
+        if globals.curtime - data[3] < 7.0 and not (#logs > 10 and idx < #logs - 10) then
+            data[2] = math.lerp(data[2], 255, 4)
+        else
+            data[2] = math.lerp(data[2], 0, 4)
+        end
+
+        offset = offset - 21 * (data[2] / 255)
+
+        text_size = render.measure_text(font, s, data[1])
+        left, middle, right = color(0, 200, 255, data[2]), color(255, 0, 238, data[2]), color(255, 234, 0, data[2])
+        render.push_clip_rect(vector(x - 3 - text_size.x / 2, y - offset + 1), vector((x + 3 + text_size.x / 2) - ((globals.curtime - data[3]) / 7) * (text_size.x + 3), y - offset + 2))
+        render.gradient(vector(x - 3 - text_size.x / 2, y - offset + 1), vector(x, y - offset + 2), left, middle, left, middle)
+        render.gradient(vector(x, y - offset + 1), vector(x + 3 + text_size.x / 2, y - offset + 2), middle, right, middle, right)
+        render.pop_clip_rect()
+
+        render.rect(vector(x - 4 - text_size.x / 2, y - offset), vector(x + 4 + text_size.x / 2, y - offset + 15), color(17, 17, 17, (data[2] / 255) * 175))
+        render.text(font, vector(x - text_size.x / 2, y - offset + 2), color(255, 255, 255, (data[2] / 255) * 255), nil, data[1])
+
+        if data[2] < 0.1 then table.remove(logs, idx) end
+    end
+end)
+
+
+local indicator=(function() notify_cache={} local a={callback_registered=false,maximum_count=4} 
+    function a:set_callback()
+        if self.callback_registered then return end; 
+        events.render:set(function() 
+            local c={x,y} 
+            local d={0,0,0} 
+            local e=1; 
+            local f=notify_cache; 
+            for g=#f,1,-1 do 
+                notify_cache[g].time=notify_cache[g].time-globals.frametime; 
+                local h,i=255,0; 
+                local i2 = 0; 
+                local lerpy = 150; 
+                local lerp_circ1 = 0.5; 
+                local j=f[g] 
+                if j.time<0 then 
+                    table.remove(notify_cache,g) 
+                else 
+                    local k=j.def_time-j.time; 
+                    local k=k>1 and 1 or k; 
+                    if j.time<1 or k<1 then 
+                        i=(k<1 and k or j.time)/1; 
+                        i2=(k<1 and k or j.time)/1; 
+                        h=i*255; lerpy=i*150; 
+                        lerp_circ1=i*0.5;
+                        if i<0.2 then e=e+8*(1.0-i/0.2) end 
+                    end; 
+                    local m={math.floor(render.measure_text(1, nil, "alien  "..j.draw).x*1.03),math.floor(render.measure_text(1, nil, "alien  "..j.draw).y*1.03)} 
+                    local n={render.measure_text(1, nil, "alien  ").x,render.measure_text(1, nil, "alien  ").y} 
+                    local o={render.measure_text(1, nil, j.draw).x,render.measure_text(1, nil, j.draw).y} 
+                    local p={c[1]/2-m[1]/2+3,c[2]-c[2]/100*13.4+e} 
+                    local col = menu.notifications:get()
+                    render.rect_outline(vector(p[1]-1,p[2]-16), vector(p[1],p[2]), color(col.r, col.g, col.b, col.a)) 
+                    --render.circle_outline(vector(p[1]+m[1]+1,p[2]-9), color(col.r, col.g, col.b, col.a), 12, -90, lerp_circ1, 2)
+                    --render.rect(vector(p[1]-2, p[2]-21), vector(p[1]-149+m[1]+lerpy, p[2]-19), color(col.r, col.g, col.b, col.a))
+					--render.rect(vector(p[1]-149+m[1]+lerpy, p[2]+3), vector(p[1]-2, p[2]+1), color(col.r, col.g, col.b, 255), 0, true)
+					--render.rect(vector(p[1]+m[1]+1,p[2]+1), vector(p[1]+149-lerpy,p[2]+3), color(col.r, col.g, col.b, col.a), 0, true)
+                    render.text(1, vector(p[1]+m[1]/2-o[1]/2-2,p[2] - 10), color(col.r, col.g, col.b,h), "c", "alien")
+                    render.text(1, vector(p[1]+m[1]/2+n[1]/2-2,p[2] - 10), color(255, 255, 255,h), "c", j.draw)
+                    e=e-33
+                end 
+            end; 
+            self.callback_registered=true 
+        end) 
+    end;
+    function a:push(q,r) 
+        local s=tonumber(q)+1; 
+        for g=self.maximum_count,2,-1 do 
+            notify_cache[g]=notify_cache[g-1] 
+        end; 
+        notify_cache[1]={time=s,def_time=s,draw=r} 
+        self:set_callback()
+    end;
+    return a 
+end)() 
+
+events.round_start:set(function(e)
+    if menu.antibruteforce:get() then
+        indicator:push(4, "Reset anti-bruteforce cache")
+    end
+end)
+			
+events.player_death:set(function(e)
+    local localplayer = entity.get_local_player()
+    local victim = entity.get(e.userid, true)
+    local attacker = entity.get(e.attacker, true)
+				
+    if victim ~= localplayer then return end
+
+    if menu.antibruteforce:get() then
+        indicator:push(4, "Reset anti-bruteforce cache")
+    end
+end)
+
+
+playerb = nil
+playerb = entity.get_local_player()
+antibrute_time_last = globals.realtime
+antibrute_time = globals.realtime
+antibrute_stages = 1
+
+
+events.bullet_impact:set(function(e)
+    local lp = entity.get_local_player()
+    if lp == nil then return end
+    local player = entity.get(e.userid, true)
+    if not player:is_enemy() then return end
+    local s_pos = vector(e.x, e.y, e.z)
+    local enemy_angles = (s_pos - player:get_hitbox_position(0)):angles()
+    local angles = ((playerb:get_hitbox_position(3) - player:get_hitbox_position(0)):angles() - enemy_angles)
+    angles.y = math.clamp(angles.y, -180, 180)
+    local fov = math.sqrt(angles.y*angles.y + angles.x*angles.x)
+    if fov < 5 and antibrute_time_last + 0.1 < globals.realtime then
+        if menu.antibruteforce:get() then
+            indicator:push(4, " Anti-bruteforce triggered, switched angle ")
+        end      
+    end
+end)
+
+local JSON = panorama.loadstring([[
+    return {
+        stringify: JSON.stringify,
+        parse: JSON.parse
+    };
+]])()
+
+
+local cfg_data = {
+    bools = {
+    },
+
+    ints = {
+        anti_aim[0].yaw_add_left,
+        anti_aim[0].yaw_add_right,
+        anti_aim[0].left_jitter_value,
+        anti_aim[0].left_limit,
+        anti_aim[0].right_limit,
+        anti_aim[1].yaw_add_left,
+        anti_aim[1].yaw_add_right,
+        anti_aim[1].left_jitter_value,
+        anti_aim[1].left_limit,
+        anti_aim[1].right_limit,
+        anti_aim[2].yaw_add_left,
+        anti_aim[2].yaw_add_right,
+        anti_aim[2].left_jitter_value,
+        anti_aim[2].left_limit,
+        anti_aim[2].right_limit,
+        anti_aim[3].yaw_add_left,
+        anti_aim[3].yaw_add_right,
+        anti_aim[3].left_jitter_value,
+        anti_aim[3].left_limit,
+        anti_aim[3].right_limit,
+        anti_aim[5].yaw_add_left,
+        anti_aim[5].yaw_add_right,
+        anti_aim[4].left_jitter_value,
+        anti_aim[4].left_limit,
+        anti_aim[4].right_limit,
+        anti_aim[5].yaw_add_left,
+        anti_aim[5].yaw_add_right,
+        anti_aim[5].left_jitter_value,
+        anti_aim[5].left_limit,
+        anti_aim[5].right_limit,
+    },
+
+    floats = {
+    },
+
+    strings = {
+        anti_aim[0].yaw_modifier,
+        anti_aim[0].fake_options,
+        anti_aim[1].yaw_modifier,
+        anti_aim[1].fake_options,
+        anti_aim[2].yaw_modifier,
+        anti_aim[2].fake_options,
+        anti_aim[3].yaw_modifier,
+        anti_aim[3].fake_options,
+        anti_aim[4].yaw_modifier,
+        anti_aim[4].fake_options,
+        anti_aim[5].yaw_modifier,
+        anti_aim[5].fake_options,
+    }
+}
+
+local export_cfg = tabs.antiaim:button("Export Config", function()
+    local Code = {{}, {}, {}, {}}
+
+    for _, bools in pairs(cfg_data.bools) do
+        table.insert(Code[1], bools:get())
+    end
+
+    for _, ints in pairs(cfg_data.ints) do
+        table.insert(Code[2], ints:get())
+    end
+
+    for _, floats in pairs(cfg_data.floats) do
+        table.insert(Code[3], floats:get())
+    end
+
+    for _, strings in pairs(cfg_data.strings) do
+        table.insert(Code[4], strings:get())
+    end
+
+    clipboard.set(JSON.stringify(Code))
+
+    print_dev("Exported config to clipboard")
+end)
+
+local import_cfg = tabs.antiaim:button("Import Config", function()
+    for k, v in pairs(JSON.parse(clipboard.get())) do
+
+        k = ({[1] = "bools", [2] = "ints", [3] = "floats", [4] = "strings", [5] = "colors"})[k]
+
+        for k2, v2 in pairs(v) do
+            if (k == "bools") then
+                cfg_data[k][k2]:set(v2)
+            end
+
+            if (k == "ints") then
+                cfg_data[k][k2]:set(v2)
+            end
+
+            if (k == "floats") then
+                cfg_data[k][k2]:set(v2)
+            end
+
+            if (k == "strings") then
+                cfg_data[k][k2]:set(v2)
+            end
+        end
+    end
+
+    print_dev("Imported config from clipboard")
+
+end)
+
+--OGLEAKERS WERE HERE
